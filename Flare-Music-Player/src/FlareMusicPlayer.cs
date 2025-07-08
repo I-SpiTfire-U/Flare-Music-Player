@@ -2,12 +2,11 @@ namespace Flare_Music_Player;
 
 public class FlareMusicPlayer
 {
-    private string _MusicDirectory;
-    private string[] _Songs;
+    private readonly string _MusicDirectory;
+    private readonly string[] _Songs;
     private int _CurrentTrack = 0;
-    private readonly string _BlankLine = new(' ', Console.BufferWidth - 1);
 
-    private AudioPlayer _AudioPlayer;
+    private readonly AudioPlayer _AudioPlayer;
     private int _LastWindowWidth;
     private int _LastWindowHeight;
 
@@ -16,7 +15,7 @@ public class FlareMusicPlayer
         _LastWindowWidth = Console.WindowWidth;
         _LastWindowHeight = Console.WindowHeight;
 
-        _MusicDirectory = @"C:\Users\Lex\Media\Music\Music\Known\";
+        _MusicDirectory = args[0];
         _Songs = Directory.GetFiles(_MusicDirectory);
         for (int i = 0; i < _Songs.Length; i++)
         {
