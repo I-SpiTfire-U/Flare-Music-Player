@@ -178,7 +178,7 @@ public class FlareMusicPlayer
         double progress = durationMs > 0 ? elapsedTime.TotalSeconds / TimeSpan.FromMilliseconds(durationMs).TotalSeconds : 0;
         _DurationBar.SetProgress(progress);
 
-        return $"{_DurationBar.GetBar} {elapsedTime:mm\\:ss} / {TimeSpan.FromMilliseconds(durationMs):mm\\:ss}";
+        return $"{_DurationBar.GetBar} {elapsedTime:hh\\:mm\\:ss} / {TimeSpan.FromMilliseconds(durationMs):hh\\:mm\\:ss}";
     }
 
     public string GetVolumeBar(float volume)
