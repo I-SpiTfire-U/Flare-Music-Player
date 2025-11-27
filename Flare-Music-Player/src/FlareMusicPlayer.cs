@@ -1,157 +1,203 @@
-namespace Flare_Music_Player;
+using Flare_Music_Player.src.UI;
+
+namespace Flare_Music_Player.src;
 
 public class FlareMusicPlayer
 {
-    private readonly string _MusicDirectory;
-    private readonly string[] _Songs;
-    private int _CurrentTrack = 0;
+    private readonly Playlist _Playlist;
 
     private readonly AudioPlayer _AudioPlayer;
     private int _LastWindowWidth;
     private int _LastWindowHeight;
 
+    private bool _TrackFinished = false;
+
+    private readonly Thumbnail _AudioThumbnail = new(0, 9, 30, 30);
+    private readonly InfoBar _DurationBar = new(0, 20);
+    private readonly InfoBar _VolumeBar = new(0, 20);
+
     public FlareMusicPlayer(string[] args)
     {
+        ConsoleUI.SetClearLineLength();
+
         _LastWindowWidth = Console.WindowWidth;
         _LastWindowHeight = Console.WindowHeight;
 
-        _MusicDirectory = args[0];
-        _Songs = Directory.GetFiles(_MusicDirectory);
-        for (int i = 0; i < _Songs.Length; i++)
-        {
-            _Songs[i] = Path.GetFileNameWithoutExtension(_Songs[i]);
-        }
+        _Playlist = new(args[0]);
 
         _AudioPlayer = new();
-        _AudioPlayer.OnUpdateTimerElapsed += UpdateTimerElapsed;
+        _AudioPlayer.OnUpdate += UpdateTimerElapsed;
+        _AudioPlayer.OnTrackEnded += ()=> _TrackFinished = true;
     }
 
     public async Task Begin()
     {
+        Console.Clear();
+
         while (true)
         {
             Console.CursorVisible = false;
-            Console.Clear();
             await ReadUserInputLoopAsync();
         }
     }
 
     private async Task ReadUserInputLoopAsync()
     {
-        _AudioPlayer.SetTrack(GetFullSongPath(_Songs[_CurrentTrack]));
-        DisplayAllInfo();
-
+        _AudioPlayer.SetTrack(_Playlist.GetActiveSong());
         _AudioPlayer.Play();
+
+        _AudioThumbnail.SetThumbnailPath(_AudioPlayer.CurrentArtworkPath);
+        _AudioThumbnail.Draw(force: true);
+
+        DisplayStaticInfo();
+        DisplayVolumeBar();
 
         while (true)
         {
             if (Console.KeyAvailable)
             {
-                ConsoleKeyInfo keyInfo = await Task.Run(() => Console.ReadKey(true));
+                byte inputKeyChar = (byte)char.ToLower(Console.ReadKey(true).KeyChar);
 
-                switch (keyInfo.Key)
+                switch (inputKeyChar)
                 {
-                    case ConsoleKey.Q:
+                    case 113:
+                        Console.Clear();
                         Environment.Exit(0);
                         break;
-                    case ConsoleKey.Spacebar:
+                    case 32:
                         _AudioPlayer.Pause();
                         break;
-                    case ConsoleKey.UpArrow:
-                        _AudioPlayer.IncreaseVolume(1);
-                        WriteAtPosition(VolumeBar(_AudioPlayer.Volume), 0, 4);
-                        break;
-                    case ConsoleKey.DownArrow:
+                    case 57:
                         _AudioPlayer.DecreaseVolume(1);
-                        WriteAtPosition(VolumeBar(_AudioPlayer.Volume), 0, 4);
+                        DisplayVolumeBar();
                         break;
-                    case ConsoleKey.LeftArrow:
-                        if (_CurrentTrack > 0)
-                        {
-                            _AudioPlayer.Stop();
-                            _CurrentTrack--;
-                            return;
-                        }
+                    case 48:
+                        _AudioPlayer.IncreaseVolume(1);
+                        DisplayVolumeBar();
                         break;
-                    case ConsoleKey.RightArrow:
-                        if (_CurrentTrack < _Songs.Length - 1)
-                        {
-                            _AudioPlayer.Stop();
-                            _CurrentTrack++;
-                            return;
-                        }
+                    case 45:
+                        _AudioPlayer.SeekSeconds(-5);
+                        UpdateTimerElapsed();
+                        break;
+                    case 61:
+                        _AudioPlayer.SeekSeconds(5);
+                        UpdateTimerElapsed();
+                        break;
+                    case 91:
+                        UpdateTrack(-1);
+                        break;
+                    case 93:
+                        UpdateTrack(1);
                         break;
                 }
             }
 
-            CheckIfWindowChanged();
-
-            if (_AudioPlayer.TrackHasEnded)
+            if (_TrackFinished)
             {
-                _AudioPlayer.Stop();
-                _CurrentTrack++;
-                break;
+                _TrackFinished = false;
+                UpdateTrack(1);
             }
+
+            CheckIfWindowChanged();
+            UpdateTimerElapsed();
+
+            await Task.Delay(50);
         }
-    }
-
-    private void CheckIfWindowChanged()
-    {
-        if (_LastWindowWidth != Console.WindowWidth || _LastWindowHeight != Console.WindowHeight)
-        {
-            _LastWindowWidth = Console.WindowWidth;
-            _LastWindowHeight = Console.WindowHeight;
-            
-            Console.Clear();
-            DisplayAllInfo();
-        }
-    }
-
-    private void DisplayAllInfo()
-    {
-        Console.WriteLine("Now Playing:");
-        Console.WriteLine($"{Path.GetFileNameWithoutExtension(_Songs[_CurrentTrack])}\n");
-        Console.WriteLine(DurationBar(_AudioPlayer.ElapsedTime, _AudioPlayer.SongDuration));
-        Console.WriteLine(VolumeBar(_AudioPlayer.Volume));
-        
-        Console.Write("\nNext Up:\n  ");
-        Console.WriteLine(Path.GetFileNameWithoutExtension(_CurrentTrack < _Songs.Length - 1 ? _Songs[_CurrentTrack + 1] : "[End of Queue]"));
-        Console.Write("Last Played:\n  ");
-        Console.WriteLine(Path.GetFileNameWithoutExtension(_CurrentTrack > 0 ? _Songs[_CurrentTrack - 1] : "[End of Queue]"));
-    }
-
-    private string GetFullSongPath(string song)
-    {
-        return Path.Combine(_MusicDirectory, $"{song}.mp3");
     }
 
     private void UpdateTimerElapsed()
     {
-        WriteAtPosition(DurationBar(_AudioPlayer.ElapsedTime, _AudioPlayer.SongDuration), 0, 3);
+        ConsoleUI.ClearAndWriteAtPosition(0, 8, GetDurationBar(_AudioPlayer.CurrentTime, _AudioPlayer.DurationMs));
     }
 
-    private static void WriteAtPosition(string text, int x, int y)
+    private void UpdateTrack(int delta)
     {
-        Console.SetCursorPosition(x, y);
-        Console.Write(text);
+        _Playlist.ShiftActiveSong(delta);
+
+        _AudioPlayer.Stop();
+        _AudioPlayer.SetTrack(_Playlist.GetActiveSong());
+        _AudioPlayer.Play();
+
+        _AudioThumbnail.SetThumbnailPath(_AudioPlayer.CurrentArtworkPath);
+        _AudioThumbnail.Draw(force: true);
+
+        Console.Clear();
+        DisplayStaticInfo();
+        DisplayVolumeBar();
     }
 
-    private static string DurationBar(TimeSpan elapsed, TimeSpan duration)
+    private void CheckIfWindowChanged()
     {
-        if (duration.TotalSeconds == 0)
+        if (_LastWindowWidth == Console.WindowWidth && _LastWindowHeight == Console.WindowHeight)
         {
-            return "[--------------------]";
+            return;
         }
-        int totalBars = 20;
-        double progress = elapsed.TotalSeconds / duration.TotalSeconds;
-        int bars = (int)(progress * totalBars);
 
-        return $"{elapsed:mm\\:ss} [{new string('■', bars).PadRight(20, '-')}] {duration:mm\\:ss}";
+        ConsoleUI.SetClearLineLength();
+
+        _LastWindowWidth = Console.WindowWidth;
+        _LastWindowHeight = Console.WindowHeight;
+
+        Console.Clear();
+
+        DisplayStaticInfo();
+        _AudioThumbnail.Draw(force: true);
+        DisplayVolumeBar();
     }
 
-    private static string VolumeBar(float volume)
+    private void DisplayStaticInfo()
+    {   
+        string? next = _Playlist.GetSongNameAtIndex(_Playlist.ActiveSongIndex + 1);
+        string nextSong = next != null
+            ? $"{Truncate(next, Console.WindowWidth)}"
+            : "<End of Queue>";
+        ConsoleUI.WriteAtPosition(0, 0, "::Next Song::");
+        ConsoleUI.ClearAndWriteAtPosition(0, 1, nextSong);
+
+        string? prev = _Playlist.GetSongNameAtIndex(_Playlist.ActiveSongIndex - 1);
+        string prevSong = prev != null
+            ? $"{Truncate(prev, Console.WindowWidth)}"
+            : "<Start of Queue>";
+        ConsoleUI.WriteAtPosition(0, 2, "::Previous Song::");
+        ConsoleUI.ClearAndWriteAtPosition(0, 3, prevSong);
+
+        string song = Truncate(_Playlist.GetActiveSongName(), Console.WindowWidth);
+        ConsoleUI.WriteAtPosition(0, 5, "::Currently Playing::");
+        ConsoleUI.ClearAndWriteAtPosition(0, 6, $"{song}");
+
+        _AudioThumbnail.Draw();
+    }
+
+    public void DisplayVolumeBar()
     {
-        int bars = (int)(volume * 20);
-        return $"  vol [{new string('■', bars).PadRight(20, '-')}] {volume:P0} ";
+        ConsoleUI.ClearAndWriteAtPosition(0, 7, GetVolumeBar(_AudioPlayer.Volume));
+    }
+
+    public string GetDurationBar(TimeSpan elapsedTime, long durationMs)
+    {
+        double progress = durationMs > 0 ? elapsedTime.TotalSeconds / TimeSpan.FromMilliseconds(durationMs).TotalSeconds : 0;
+        _DurationBar.SetProgress(progress);
+
+        return $"{_DurationBar.GetBar} {elapsedTime:mm\\:ss} / {TimeSpan.FromMilliseconds(durationMs):mm\\:ss}";
+    }
+
+    public string GetVolumeBar(float volume)
+    {
+        double progress = volume / 100.0;
+        _VolumeBar.SetProgress(progress);
+
+        return $"{_VolumeBar.GetBar} Volume: {volume}%";
+    }
+
+    public static string Truncate(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text)) 
+        {
+            return "";
+        }
+
+        return text.Length > maxLength 
+            ? text[..(maxLength - 4)] + "..." 
+            : text;
     }
 }

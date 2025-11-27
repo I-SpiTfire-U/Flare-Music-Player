@@ -1,4 +1,4 @@
-﻿namespace Flare_Music_Player;
+﻿namespace Flare_Music_Player.src;
 
 public class Program
 {
