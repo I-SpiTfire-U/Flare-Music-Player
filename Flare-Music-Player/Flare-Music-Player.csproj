@@ -8,6 +8,12 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
+        <None Include="native/*">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <TargetPath>%(Filename)%(Extension)</TargetPath>
+        </None>
+    </ItemGroup>
+    <ItemGroup>
         <PackageReference Include="LibVLCSharp" Version="3.9.4" />
         <PackageReference Include="TagLibSharp" Version="2.3.0" />
     </ItemGroup>
