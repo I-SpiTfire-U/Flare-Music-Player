@@ -16,14 +16,14 @@ public class FlareMusicPlayer
     private readonly InfoBar _DurationBar = new(0, 20);
     private readonly InfoBar _VolumeBar = new(0, 20);
 
-    public FlareMusicPlayer(string[] args)
+    public FlareMusicPlayer(string musicPath)
     {
         ConsoleUI.SetClearLineLength();
 
         _LastWindowWidth = Console.WindowWidth;
         _LastWindowHeight = Console.WindowHeight;
 
-        _Playlist = new(args[0]);
+        _Playlist = new(musicPath);
 
         _AudioPlayer = new();
         _AudioPlayer.OnUpdate += UpdateTimerElapsed;
